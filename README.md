@@ -13,5 +13,5 @@ Filename inference rules encoded in the script:
 - `spk` means speaker, `h` means headset.
 - `dolbyh` means Dolby for headset.
 - `dolbys` or `dolby` means Dolby for speaker.
-- `enhance` after `spk` means System audio enhancement is enabled for speaker.
-- `enhance` after `h` means System audio enhancement is enabled for headset.
+- `enhance` after `spk` means system audio enhancement is enabled for speaker.
+- `enhance` after `h` means system audio enhancement is enabled for headset.
