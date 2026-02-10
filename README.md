@@ -1,6 +1,6 @@
 # spkchk
 
-This repository stores RtHDDump captures. Use `rthddump_report.py` to read the files and infer the meaning of filename verbs while also reporting basic content stats:
+This repository stores RtHDDump captures. Use `rthddump_report.py` to read the files and infer the meaning of filename tokens while also reporting basic content stats:
 
 ```bash
 python rthddump_report.py --output rthddump_summary.csv
