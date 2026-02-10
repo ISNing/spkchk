@@ -158,7 +158,7 @@ The filename tokens consistently encode device selection and processing features
   [RtHDDump_spk_enhance.txt], [speaker], [False], [False], [True], [False], [False],
 )
 
-== Appendix B: regeneration
+== Appendix B: Regeneration
 
 Generate the CSV summary and the PDF report from the current dumps:
 
