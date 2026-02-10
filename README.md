@@ -14,6 +14,8 @@ Academic report files:
 - `RtHDDump_Report.typ` (Typst source)
 - `RtHDDump_Report.pdf` (compiled PDF)
 
+The academic report focuses on content differences (WID lines and `REG_*` key/value changes) to correlate with device states.
+
 Filename inference rules encoded in the script:
 
 - `dual` means the headset is plugged in (absence means unplugged).
