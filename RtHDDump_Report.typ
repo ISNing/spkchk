@@ -122,7 +122,7 @@ Most dumps favor the speaker as the preferred device, while the headset is plugg
 
 == Conclusion
 
-The filename verbs consistently encode device selection and processing features. The dataset is dominated by speaker-preferred configurations with headset plugged in, and speaker processing features appear more frequently than headset Dolby. The full per-file inference table below provides the definitive mapping from each dump to its inferred device state.
+The filename tokens consistently encode device selection and processing features. The dataset is dominated by speaker-preferred configurations with headset plugged in, and speaker processing features appear more frequently than headset Dolby. The full per-file inference table below provides the definitive mapping from each dump to its inferred device state.
 
 == Appendix A: Per-file inference results
 
