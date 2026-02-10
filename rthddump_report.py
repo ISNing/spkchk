@@ -6,7 +6,7 @@ import csv
 import hashlib
 import sys
 from pathlib import Path
-from typing import Dict, List
+from typing import Any, Dict, List
 
 
 DEVICE_NAMES = {"spk": "speaker", "h": "headset"}
@@ -14,7 +14,7 @@ SPEAKER_DOLBY_TOKENS = {"dolby", "dolbys"}
 HEADSET_DOLBY_TOKENS = {"dolbyh"}
 
 
-def parse_tokens(tokens: List[str]) -> Dict[str, object]:
+def parse_tokens(tokens: List[str]) -> Dict[str, Any]:
     headset_plugged = "dual" in tokens
     tokens = [token for token in tokens if token != "dual"]
     device_positions = [(idx, token) for idx, token in enumerate(tokens) if token in DEVICE_NAMES]
@@ -69,7 +69,7 @@ def parse_tokens(tokens: List[str]) -> Dict[str, object]:
     }
 
 
-def parse_filename(filename: str) -> Dict[str, object]:
+def parse_filename(filename: str) -> Dict[str, Any]:
     stem = Path(filename).stem
     if stem.startswith("RtHDDump_"):
         stem = stem[len("RtHDDump_") :]
@@ -77,7 +77,7 @@ def parse_filename(filename: str) -> Dict[str, object]:
     return parse_tokens(tokens)
 
 
-def file_stats(path: Path) -> Dict[str, object]:
+def file_stats(path: Path) -> Dict[str, Any]:
     data = path.read_bytes()
     line_count = data.count(b"\n")
     if data and not data.endswith(b"\n"):
@@ -89,7 +89,7 @@ def file_stats(path: Path) -> Dict[str, object]:
     }
 
 
-def collect_dump(path: Path) -> Dict[str, object]:
+def collect_dump(path: Path) -> Dict[str, Any]:
     parsed = parse_filename(path.name)
     stats = file_stats(path)
     return {
