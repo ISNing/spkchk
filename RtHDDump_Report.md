@@ -1,83 +1,98 @@
 # RtHDDump Content Difference Report
 
-## Abstract
+## Executive summary (direct answers)
 
-This report investigates RtHDDump file *content* differences and their relationship to device states (preferred device, headset plug state, and Dolby/enhancement modes). The analysis focuses on WID lines and registry-style key/value entries inside each dump rather than relying on filename tokens. We find that WID lines are identical across all dumps, while the state changes consistently align with differences in specific `REG_*` keys.
+- **WIDs do not change across Windows profiles.** They identify hardware pins (speaker, headphone, mic, SPDIF) and stay constant across preferred device, Dolby, and enhancement states.
+- **Only one WID is overridden by the Windows driver:** WID `0x1D` (`Drv=411111F0` vs `Codec=40471A6D`). Linux keeps the codec default (`Pin Default=40471A6D`).
+- **Windows coefficient changes are limited to headset plug:** Wid `0x20` indices `0x10`, `0x46`, `0x67` toggle when the headset is plugged.
+- **Linux coefficient changes are limited to headset plug + automute/dualstream:** Node `0x20` coefficient `0x46` toggles with headset plug; `0x77/0x78` move with automute/dualstream.
+- **Dolby/enhancement** do **not** appear in WIDs or coefficients; they are encoded in the `REG_*` registry keys in Windows dumps.
 
-## Data and methods
+The remainder of this report reconstructs the investigation into **Windows internals**, **Linux internals**, and a **cross‑platform investigation** that maps each WID and coefficient to its inferred control meaning.
 
-- Dataset: 27 RtHDDump captures.
-- WID analysis: extract all lines starting with `Wid=` and compare across files.
-- Content difference analysis: extract key/value lines (`<key> = <value>`).  
-- Paired comparison method: for each device state, match files with all other states held constant and compare their key/value lines. A key is a *signature* when it changes in ≥ half of the paired comparisons for that state.
-- Values are trimmed for readability (`prefix…suffix`) but still show the changing portions.
+---
 
-## Direct answer (WID vs device states)
+## Windows internal investigation
 
-**No WID lines change across the dataset**, so there is **no WID that directly controls** Dolby, preferred device, or system audio enhancement in these dumps. The state changes are instead reflected in `REG_*` key/value differences:
+### WID meaning list (Windows WID → Linux Node mapping)
 
-| State | WID control? | Content keys that change (examples) |
-| --- | --- | --- |
-| Dolby (speaker/headset) | None observed | `(REG_BINARY) {1e94c58f-3e40-4ddb-b10c-a86d8b870a31},2`, `(REG_BINARY) {8a845654-d6c3-4cd7-b4eb-243d4bd99032},2`, `(REG_BINARY) {6737016f-5360-48ee-af05-e616c8ff27a7},2`, `(REG_BINARY) {1b4dab55-b1fb-4d8c-8317-f2d4a96efbb8},4` |
-| Preferred (primary) device | None observed | `(REG_SZ) {24dbb0fc-9311-4b3d-9cf0-18ff155639d4},0`, `(REG_BINARY) {1e94c58f-3e40-4ddb-b10c-a86d8b870a31},2`, `(REG_BINARY) {bb8bdb4a-edac-4660-9056-8e67e68e4e77},4` |
-| System audio enhancement | None observed | `(REG_BINARY) {1e94c58f-3e40-4ddb-b10c-a86d8b870a31},2`, `(REG_BINARY) {1b4dab55-b1fb-4d8c-8317-f2d4a96efbb8},1`, `(REG_DWORD) {1da5d803-d492-4edd-8c23-e0c0ffee7f0e},5` |
+Windows `Wid=0x??` entries correspond directly to Linux `Node 0x??`. The table below lists each WID, its Linux node type, and the pin description (the practical “meaning”).
 
-## Windows vs Linux direct comparisons
-
-### WID meaning and Node mapping
-
-Windows `Wid=0x??` entries correspond directly to Linux `Node 0x??`. The WID line reports the codec default (`Codec`) and the driver override (`Drv`), while Linux exposes the active value as `Pin Default` in the node section. The mapping below compares Windows (spk baseline) to Linux (`lin_codec-dump-spk`):
-
-| WID/Node | Windows Codec | Windows Drv | Linux Pin Default | Drv==Linux? | Codec==Linux? |
+| WID | Linux node type | Linux pin description | Win Codec | Win Drv | Drv!=Codec |
 | --- | --- | --- | --- | --- | --- |
-| 0x12 | 40000000 | 40000000 | 40000000 | yes | yes |
-| 0x13 | 411111F0 | 411111F0 | 411111F0 | yes | yes |
-| 0x14 | 90170120 | 90170120 | 90170120 | yes | yes |
-| 0x17 | 90170120 | 90170120 | 90170120 | yes | yes |
-| 0x19 | 03A11030 | 03A11030 | 03A11030 | yes | yes |
-| 0x1A | 411111F0 | 411111F0 | 411111F0 | yes | yes |
-| 0x1B | 411111F0 | 411111F0 | 411111F0 | yes | yes |
-| 0x1D | 40471A6D | 411111F0 | 40471A6D | no | yes |
-| 0x1E | 411111F0 | 411111F0 | 411111F0 | yes | yes |
-| 0x21 | 03211010 | 03211010 | 03211010 | yes | yes |
+| 0x12 | Node 0x12 [Pin Complex] wcaps 0x40040b: Stereo Amp-In | [N/A] Line Out at Ext N/A | 40000000 | 40000000 | no |
+| 0x13 | Node 0x13 [Pin Complex] wcaps 0x40040b: Stereo Amp-In | [N/A] Speaker at Ext Rear | 411111F0 | 411111F0 | no |
+| 0x14 | Node 0x14 [Pin Complex] wcaps 0x40058d: Stereo Amp-Out | [Fixed] Speaker at Int N/A | 90170120 | 90170120 | no |
+| 0x17 | Node 0x17 [Pin Complex] wcaps 0x40058d: Stereo Amp-Out | [Fixed] Speaker at Int N/A | 90170120 | 90170120 | no |
+| 0x19 | Node 0x19 [Pin Complex] wcaps 0x40048b: Stereo Amp-In | [Jack] Mic at Ext Left | 03A11030 | 03A11030 | no |
+| 0x1A | Node 0x1a [Pin Complex] wcaps 0x40048b: Stereo Amp-In | [N/A] Speaker at Ext Rear | 411111F0 | 411111F0 | no |
+| 0x1B | Node 0x1b [Pin Complex] wcaps 0x40058f: Stereo Amp-In Amp-Out | [N/A] Speaker at Ext Rear | 411111F0 | 411111F0 | no |
+| 0x1D | Node 0x1d [Pin Complex] wcaps 0x400400: Mono | [N/A] SPDIF Out at Ext N/A | 40471A6D | 411111F0 | **yes** |
+| 0x1E | Node 0x1e [Pin Complex] wcaps 0x400501: Stereo | [N/A] Speaker at Ext Rear | 411111F0 | 411111F0 | no |
+| 0x21 | Node 0x21 [Pin Complex] wcaps 0x40058d: Stereo Amp-Out | [Jack] HP Out at Ext Left | 03211010 | 03211010 | no |
 
-**Direct answer:** WID `0x1D` is the only pin where the Windows driver overrides the codec default (`Drv=411111F0` vs `Codec=40471A6D`). Linux keeps the codec default (`Pin Default=40471A6D`).
+**Inference:** WID `0x14/0x17` are internal speakers, WID `0x21` is the headphone jack, WID `0x19` is the external mic, and WID `0x1D` is SPDIF/aux. The only Windows driver override is **WID 0x1D**.
 
-### Windows vs Linux coefficient (verb) block
+### Windows coefficient controls (Wid 0x20)
 
-Windows stores vendor coefficients under **Wid 0x20** (Index lines). Linux exposes the same vendor block under **Node 0x20** (Coeff lines). Comparing Windows `RtHDDump_spk.txt` to Linux `lin_codec-dump-spk` shows only these mismatches:
+Windows stores vendor coefficients under **Wid 0x20**. The only coefficient changes tied to a Windows state are for **headset plugged**:
 
-| Index | Windows (Wid 0x20) | Linux (Node 0x20) |
-| --- | --- | --- |
-| 0x03 | F002 | 0002 |
-| 0x04 | AA09 | AA89 |
-| 0x08 | 4A37 | 4AB7 |
-| 0x10 | 8A06 | 8906 |
-| 0x1A | 8C83 | 8003 |
-| 0x30 | 9007 | 9004 |
-| 0x44 | 4900 | 4500 |
-| 0x46 | 0004 | 0404 |
-| 0x48 | D049 | D011 |
-| 0x49 | 0049 | 0045 |
-| 0x67 | 1000 | F000 |
-| 0x77 | 0000 | 0050 |
-| 0x78 | 0000 | 00A6 |
+| Index | Headset unplugged | Headset plugged | Inferred meaning |
+| --- | --- | --- | --- |
+| 0x10 | 8A06 | 8B06 | Headset plug toggle (Windows) |
+| 0x46 | 0004 | 0C34 | Headset plug toggle (Windows) |
+| 0x67 | 1000 | 3000 | Headset plug toggle (Windows) |
 
-**Direct answer:** The largest Windows/Linux differences sit in the vendor coefficient block (Wid/Node 0x20). These are the immediate candidates for verb-level tuning if you want Linux to match Windows behavior.
+**Inference:** headset plug is expressed via **Wid 0x20 coefficient deltas**, not via WID pin changes. Dolby/enhancement are **not** represented in Wid/coeff values and instead live in `REG_*` deltas.
 
-### State deltas across Windows profiles
+---
 
-Windows **WID pin values do not change across profiles** (preferred device, Dolby, enhancement, headset plug). The only Windows coefficient deltas tied to a state are for **headset plugged**:
+## Linux internal investigation
 
-| Index | Headset unplugged | Headset plugged |
-| --- | --- | --- |
-| 0x10 | 8A06 | 8B06 |
-| 0x46 | 0004 | 0C34 |
-| 0x67 | 1000 | 3000 |
+### Linux node controls
 
-No Wid 0x20 coefficient changes were observed for speaker/headset Dolby or enhancement states in the Windows dumps; those states are reflected in registry (`REG_*`) deltas instead.
+Linux exposes the same pin controls as the Windows WID list above. The Linux pin defaults confirm the same roles: internal speakers on nodes `0x14/0x17`, headphone jack on `0x21`, mic on `0x19`, and SPDIF/aux on `0x1D`.
 
-### Inconsistent behavior to reproduce Windows on Linux
+### Linux coefficient controls (Node 0x20)
+
+Linux exposes vendor coefficients under **Node 0x20**. Only three coefficients vary across Linux states:
+
+| State | Coeff 0x46 | Coeff 0x77 | Coeff 0x78 | Inferred meaning |
+| --- | --- | --- | --- | --- |
+| spk | 0404 | 0050 | 00A6 | Linux baseline |
+| dual_h_spk | 0C04 | 0063 | 0079 | Headset plug toggles 0x46/0x77/0x78 |
+| dual_h_spk_no_automute | 0C04 | 0023 | 0090 | Automute toggle (0x77/0x78) |
+| dual_h_spk_no_automute_dualstream | 0C04 | 0046 | 005D | Dualstream toggle (0x77/0x78) |
+
+**Inference:**
+- **0x46** is a headset‑plug control in Linux.
+- **0x77/0x78** encode automute/dualstream routing choices (Linux‑specific behavior).
+
+---
+
+## Cross investigation (Windows ↔ Linux)
+
+### Coefficient meaning list (merged view)
+
+The table below lists every coefficient index that differs across Windows/Linux or changes with a state, and the inferred meaning based on observed deltas.
+
+| Index | Win base | Win headset | Linux base | Linux headset | Linux no_automute | Linux dualstream | Inferred meaning |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 0x03 | F002 | F002 | 0002 | 0002 | 0002 | 0002 | Baseline mismatch (Win vs Linux) |
+| 0x04 | AA09 | AA09 | AA89 | AA89 | AA89 | AA89 | Baseline mismatch (Win vs Linux) |
+| 0x08 | 4A37 | 4A37 | 4AB7 | 4AB7 | 4AB7 | 4AB7 | Baseline mismatch (Win vs Linux) |
+| 0x10 | 8A06 | 8B06 | 8906 | 8906 | 8906 | 8906 | Headset plug toggle (Windows) |
+| 0x1A | 8C83 | 8C83 | 8003 | 8003 | 8003 | 8003 | Baseline mismatch (Win vs Linux) |
+| 0x30 | 9007 | 9007 | 9004 | 9004 | 9004 | 9004 | Baseline mismatch (Win vs Linux) |
+| 0x44 | 4900 | 4900 | 4500 | 4500 | 4500 | 4500 | Baseline mismatch (Win vs Linux) |
+| 0x46 | 0004 | 0C34 | 0404 | 0C04 | 0C04 | 0C04 | Headset plug toggle (Windows); headset plug toggle (Linux) |
+| 0x48 | D049 | D049 | D011 | D011 | D011 | D011 | Baseline mismatch (Win vs Linux) |
+| 0x49 | 0049 | 0049 | 0045 | 0045 | 0045 | 0045 | Baseline mismatch (Win vs Linux) |
+| 0x67 | 1000 | 3000 | F000 | F000 | F000 | F000 | Headset plug toggle (Windows) |
+| 0x77 | 0000 | 0000 | 0050 | 0063 | 0023 | 0046 | Headset plug + automute/dualstream (Linux) |
+| 0x78 | 0000 | 0000 | 00A6 | 0079 | 0090 | 005D | Headset plug + automute/dualstream (Linux) |
+
+### Inconsistency list (what blocks matching Windows on Linux)
 
 | Inconsistency | Windows behavior | Linux behavior | Reproduction knob (Linux) |
 | --- | --- | --- | --- |
@@ -86,160 +101,14 @@ No Wid 0x20 coefficient changes were observed for speaker/headset Dolby or enhan
 | Headset plug handling | Wid 0x20 indices `0x10/0x46/0x67` toggle on plug | Linux uses pin mutes + coeff `0x46` | Apply Windows index values on plug/unplug and avoid automute pin mutes |
 | Automute/dualstream | Not represented in Wid 0x20 | Linux uses coeff `0x77/0x78` + pin amp-out | Set coeffs `0x77/0x78` to Windows baseline (0000) and manage routing explicitly |
 
-**Direct reproduction path:** update Linux pin config for 0x1D, then apply the Windows Wid 0x20 coefficient table to Node 0x20 (baseline), and mirror the headset-plug deltas (`0x10/0x46/0x67`) when the jack state changes. This aligns Linux’s control surface to the Windows driver behavior.
+### Direct reproduction path (Linux → Windows behavior)
 
-## Linux codec dump analysis
+1. Retask pin **0x1D** to the Windows driver value **0x411111F0**.
+2. Apply the **Windows Wid 0x20 coefficient baseline** to Linux Node 0x20 (indices listed above).
+3. On headset plug/unplug, mirror the **Windows headset‑plug deltas** (`0x10/0x46/0x67`).
+4. Neutralize Linux‑specific automute behavior by setting **0x77/0x78** to **Windows baseline (0000)** and controlling routing explicitly.
 
-Linux dumps (`lin_` prefix) are HD-audio codec snapshots (Realtek ALC287). Their tokens describe ALSA mixer states:
-
-- `no_automute`: automute disabled via alsamixer.
-- `dualstream`: manual unmute of both headphone and speaker paths while the headset is plugged.
-- `dual` (in the filename): headset is plugged.
-
-The Linux dumps show a **single stream** shared by the speaker/headphone outputs (node 0x02 and 0x03). The speaker pins (node 0x14/0x17) switch between `0x80` (muted) and `0x00` (unmuted) when automute/dualstream changes.
-
-| File | dual (hp plugged) | no_automute | dualstream | node0x02 stream | node0x03 stream | node0x14 amp-out | node0x17 amp-out |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| lin_codec-dump-dual_h_spk | yes | no | no | 0 | 0 | 0x80 0x80 | 0x80 0x80 |
-| lin_codec-dump-dual_h_spk_no_automute | yes | yes | no | 1 | 1 | 0x80 0x80 | 0x80 0x80 |
-| lin_codec-dump-dual_h_spk_no_automute_dualstream | yes | yes | yes | 1 | 1 | 0x00 0x00 | 0x00 0x00 |
-| lin_codec-dump-spk | no | no | no | 0 | 0 | 0x00 0x00 | 0x00 0x00 |
-| lin_codec-dump-spk_no_automute | no | yes | no | 1 | 1 | 0x00 0x00 | 0x00 0x00 |
-| lin_codec-dump-spk_no_automute_dualstream | no | yes | yes | 1 | 1 | 0x00 0x00 | 0x00 0x00 |
-
-**Interpretation:** `dualstream` explicitly unmutes the speaker pins while the headset is plugged, so the same audio stream is audible from both ports. `no_automute` turns off ALSA automute but does not by itself unmute the speaker pins when the headset is plugged; the manual unmute (dualstream) is what clears the `0x80` mute values.
-
-### Linux coefficient (verb) deltas
-
-The refreshed Linux dumps now include the vendor coefficient block under **Node 0x20**. Only three coefficients differ across the Linux states:
-
-| File | dual | no_automute | dualstream | Coeff 0x46 | Coeff 0x77 | Coeff 0x78 |
-| --- | --- | --- | --- | --- | --- | --- |
-| lin_codec-dump-dual_h_spk | yes | no | no | 0c04 | 0063 | 0079 |
-| lin_codec-dump-dual_h_spk_no_automute | yes | yes | no | 0c04 | 0023 | 0090 |
-| lin_codec-dump-dual_h_spk_no_automute_dualstream | yes | yes | yes | 0c04 | 0046 | 005d |
-| lin_codec-dump-spk | no | no | no | 0404 | 0050 | 00a6 |
-| lin_codec-dump-spk_no_automute | no | yes | no | 0404 | 003c | 006b |
-| lin_codec-dump-spk_no_automute_dualstream | no | yes | yes | 0404 | 001f | 0079 |
-
-**Interpretation:** Coeff **0x46** flips when the headset is plugged (`dual`), while **0x77** and **0x78** vary with automute and manual dualstream behavior. This aligns with the blog guidance that Windows/Linux differences often live in the vendor coefficient (verb) block rather than in the WID defaults.
-
-## Results
-
-### WID section stability
-
-All 27 files contain the same 11 WID lines with identical values, indicating that the device-state verbs are **not** encoded by WID changes in this dataset.
-
-| WID | Codec | Drv | Loc |
-| --- | --- | --- | --- |
-| 12 | 40000000 | 40000000 | 00000000 |
-| 13 | 411111F0 | 411111F0 | 00000000 |
-| 14 | 90170120 | 90170120 | 00000000 |
-| 17 | 90170120 | 90170120 | 00000000 |
-| 18 | 81D111F0 | — | — |
-| 19 | 03A11030 | 03A11030 | 00080000 |
-| 1A | 411111F0 | 411111F0 | 00020400 |
-| 1B | 411111F0 | 411111F0 | 00000000 |
-| 1D | 40471A6D | 411111F0 | 00000000 |
-| 1E | 411111F0 | 411111F0 | 00000700 |
-| 21 | 03211010 | 03211010 | 00020000 |
-
-### Feature difference summary
-
-| Feature | Paired comparisons | Keys ≥ half pairs | Keys all pairs |
-| --- | --- | --- | --- |
-| preferred_device | 3 | 15 | 8 |
-| headset_plugged | 1 | 36 | 36 |
-| speaker_dolby | 6 | 5 | 3 |
-| speaker_enhance | 6 | 9 | 3 |
-| headset_dolby | 3 | 10 | 10 |
-| headset_enhance | 4 | 14 | 3 |
-
-```mermaid
-xychart-beta
-  title "Signature key counts by feature (>= half of paired comparisons)"
-  x-axis ["preferred_device","headset_plugged","speaker_dolby","speaker_enhance","headset_dolby","headset_enhance"]
-  y-axis "Keys" 0 --> 40
-  bar [15,36,5,9,10,14]
-```
-
-### Preferred device signatures
-
-| Key | Coverage | Speaker preferred | Headset preferred |
-| --- | --- | --- | --- |
-| `(REG_BINARY) {1e94c58f-3e40-4ddb-b10c-a86d8b870a31},2` | 3/3 | `02 00 00 00 01 00 00 00 EF 06` | `02 00 00 00 01 00 00 00 EF 01` |
-| `(REG_BINARY) Position` | 3/3 | `01 00 00 00 00 00 00 00 00 00 00 00 00 0…0 00 00 00 00 00` | `01 00 00 00 00 00 00 00 00 00 00 00 00 0…0 00 00 00 00 00` |
-| `(REG_BINARY) {1b4dab55-b1fb-4d8c-8317-f2d4a96efbb8},4` | 3/3 | `41 00 00 00 01 00 00 00 01 00 01 00 01 0…0 00 40 34 00 00` | `41 00 00 00 01 00 00 00 01 00 01 00 01 0…2 00 20 23 00 00` |
-| `(REG_SZ) {24dbb0fc-9311-4b3d-9cf0-18ff155639d4},0` | 3/3 | `{0.0.0.00000000}.{36e664d4-3174-4fd5-ace4-5287bc0bdf22}` | `{0.0.0.00000000}.{105abd99-be3c-4986-856c-3f24ec337b55}` |
-| `(REG_BINARY) {bb8bdb4a-edac-4660-9056-8e67e68e4e77},4` | 3/3 | `41 00 00 00 01 00 00 00 C7 1B 04 75 36 2…3 E0 37 6D 08 5A` | `41 00 00 00 01 00 00 00 0B B9 7A 91 18 0…9 1A 56 F8 04 5A` |
-
-### Headset plug signatures
-
-| Key | Coverage | Headset plugged | Headset unplugged |
-| --- | --- | --- | --- |
-| `(REG_DWORD) InternalSpeakerStreamActive` | 1/1 | `0x0000` | `0x0001` |
-| `(REG_BINARY) {5510c7ab-dfc2-40d0-a98b-5f77f697005e},2` | 1/1 | `03 00 00 00 01 00 00 00 28 00 00 00` | `03 00 00 00 01 00 00 00 00 00 00 00` |
-| `(REG_BINARY) {5510c7ab-dfc2-40d0-a98b-5f77f697005e},1` | 1/1 | `03 00 00 00 01 00 00 00 08 00 00 00` | `03 00 00 00 01 00 00 00 02 00 00 00` |
-| `(REG_DWORD) {3ba0cd54-830f-4551-a6eb-f3eab68e3700},6` | 1/1 | `0x0000` | `0x0001` |
-| `(REG_BINARY) {194ef948-7cdb-403e-9f47-19418f7b24fd},2` | 1/1 | `40 00 00 00 01 00 00 00 8D F3 96 28 D4 9A DC 01` | `40 00 00 00 01 00 00 00 59 36 9F D1 D3 9A DC 01` |
-
-### Speaker Dolby signatures
-
-| Key | Coverage | Speaker Dolby on | Speaker Dolby off |
-| --- | --- | --- | --- |
-| `(REG_BINARY) Position` | 6/6 | `01 00 00 00 00 00 00 00 00 00 00 00 00 0…0 00 00 00 00 00` | `01 00 00 00 00 00 00 00 00 00 00 00 00 0…0 00 00 00 00 00` |
-| `(REG_BINARY) {1b4dab55-b1fb-4d8c-8317-f2d4a96efbb8},4` | 6/6 | `41 00 00 00 01 00 00 00 01 00 01 00 01 0…2 00 20 23 00 00` | `41 00 00 00 01 00 00 00 01 00 01 00 01 0…2 00 60 23 00 00` |
-| `(REG_BINARY) {1b4dab55-b1fb-4d8c-8317-f2d4a96efbb8},1` | 6/6 | `41 00 00 00 01 00 00 00 01 00 01 00 01 0…2 00 20 23 00 00` | `41 00 00 00 01 00 00 00 01 00 01 00 01 0…2 00 60 23 00 00` |
-| `(REG_BINARY) {1e94c58f-3e40-4ddb-b10c-a86d8b870a31},2` | 4/6 | `02 00 00 00 01 00 00 00 20 0C` | `02 00 00 00 01 00 00 00 EF 07` |
-| `(REG_BINARY) {8a845654-d6c3-4cd7-b4eb-243d4bd99032},2` | 3/6 | `41 00 00 00 01 00 00 00 00 00 00 00 00 0…E F9 95 53 37 90` | `41 00 00 00 01 00 00 00 00 00 00 00 00 0…0 00 00 00 00 00` |
-
-### Speaker enhancement signatures
-
-| Key | Coverage | Speaker enhancement on | Speaker enhancement off |
-| --- | --- | --- | --- |
-| `(REG_BINARY) Position` | 6/6 | `01 00 00 00 00 00 00 00 00 00 00 00 00 0…0 00 00 00 00 00` | `01 00 00 00 00 00 00 00 00 00 00 00 00 0…0 00 00 00 00 00` |
-| `(REG_BINARY) {1b4dab55-b1fb-4d8c-8317-f2d4a96efbb8},4` | 6/6 | `41 00 00 00 01 00 00 00 01 00 01 00 01 0…2 00 20 23 00 00` | `41 00 00 00 01 00 00 00 01 00 01 00 01 0…2 00 A0 23 00 00` |
-| `(REG_BINARY) {1b4dab55-b1fb-4d8c-8317-f2d4a96efbb8},1` | 6/6 | `41 00 00 00 01 00 00 00 01 00 01 00 01 0…2 00 20 23 00 00` | `41 00 00 00 01 00 00 00 01 00 01 00 01 0…2 00 A0 23 00 00` |
-| `(REG_BINARY) {1e94c58f-3e40-4ddb-b10c-a86d8b870a31},2` | 5/6 | `02 00 00 00 01 00 00 00 EF 01` | `02 00 00 00 01 00 00 00 EF 02` |
-| `(REG_DWORD) {1da5d803-d492-4edd-8c23-e0c0ffee7f0e},5` | 4/6 | `∅` | `0x0001` |
-
-### Headset Dolby signatures
-
-| Key | Coverage | Headset Dolby on | Headset Dolby off |
-| --- | --- | --- | --- |
-| `(REG_BINARY) {8a845654-d6c3-4cd7-b4eb-243d4bd99032},2` | 3/3 | `41 00 00 00 01 00 00 00 00 00 00 00 00 0…F E8 0F 4D 39 5D` | `41 00 00 00 01 00 00 00 00 00 00 00 00 0…0 00 00 00 00 00` |
-| `(REG_BINARY) {1e94c58f-3e40-4ddb-b10c-a86d8b870a31},2` | 3/3 | `02 00 00 00 01 00 00 00 EF 07` | `02 00 00 00 01 00 00 00 EF 05` |
-| `(REG_BINARY) Position` | 3/3 | `01 00 00 00 00 00 00 00 00 00 00 00 00 0…0 00 00 00 00 00` | `01 00 00 00 00 00 00 00 00 00 00 00 00 0…0 00 00 00 00 00` |
-| `(REG_BINARY) {1b4dab55-b1fb-4d8c-8317-f2d4a96efbb8},4` | 3/3 | `41 00 00 00 01 00 00 00 01 00 01 00 01 0…0 00 80 34 00 00` | `41 00 00 00 01 00 00 00 01 00 01 00 01 0…2 00 C0 33 00 00` |
-| `(REG_BINARY) {6737016f-5360-48ee-af05-e616c8ff27a7},2` | 3/3 | `02 00 00 00 01 00 00 00 04 00` | `02 00 00 00 01 00 00 00 00 00` |
-
-### Headset enhancement signatures
-
-| Key | Coverage | Headset enhancement on | Headset enhancement off |
-| --- | --- | --- | --- |
-| `(REG_BINARY) Position` | 4/4 | `01 00 00 00 00 00 00 00 00 00 00 00 00 0…0 00 00 00 00 00` | `01 00 00 00 00 00 00 00 00 00 00 00 00 0…0 00 00 00 00 00` |
-| `(REG_BINARY) {1b4dab55-b1fb-4d8c-8317-f2d4a96efbb8},4` | 4/4 | `41 00 00 00 01 00 00 00 01 00 01 00 01 0…2 00 A0 23 00 00` | `41 00 00 00 01 00 00 00 01 00 01 00 01 0…2 00 20 24 00 00` |
-| `(REG_BINARY) {1b4dab55-b1fb-4d8c-8317-f2d4a96efbb8},1` | 4/4 | `41 00 00 00 01 00 00 00 01 00 01 00 01 0…2 00 A0 23 00 00` | `41 00 00 00 01 00 00 00 01 00 01 00 01 0…2 00 20 24 00 00` |
-| `(REG_BINARY) {1e94c58f-3e40-4ddb-b10c-a86d8b870a31},2` | 3/4 | `02 00 00 00 01 00 00 00 EF 01` | `02 00 00 00 01 00 00 00 EF 02` |
-| `(REG_BINARY) {624f56de-fd24-473e-814a-de40aacaed16},3` | 2/4 | `41 00 00 00 01 00 00 00 FE FF 02 00 80 B…0 AA 00 38 9B 71` | `∅` |
-
-## Conclusion
-
-The device-state verbs are reflected in **registry key/value differences**, not WID line changes. Preferred device and headset plug state show strong, consistent content signatures, while Dolby and enhancement states show fewer but still repeatable key changes across paired comparisons. The signature tables above provide the definitive, content-based mapping from each state to the specific keys that change.
-
-### Windows vs Linux implementation differences
-
-- **Windows:** exposes separate speaker/headset endpoints and maintains independent streams. Registry (`REG_*`) deltas track preferred device, Dolby, and enhancement independently per endpoint.
-- **Linux:** exposes a single logical playback device with shared stream IDs for speaker/headphone outputs (node 0x02/0x03). Automute and manual unmute are reflected in pin amp-out values (node 0x14/0x17) and Node 0x20 coefficients, not separate streams.
-
-### Consistency guidance
-
-To make platform behavior consistent, choose one of these strategies:
-
-1. **Match Windows behavior on Linux** by exposing separate sinks (speaker/headphone) via ALSA UCM or PipeWire/WirePlumber and routing distinct streams to each output, while disabling automute.
-2. **Match Linux behavior on Windows** by forcing a shared stream (mirrored output) so speaker/headphone always play the same audio flow.
-
-The analysis above indicates that Linux currently controls routing/mute state (pin amp-out values and Node 0x20 coefficients), while Windows controls endpoint selection and processing (registry keys). Aligning the control surface is the key to cross‑platform consistency.
+---
 
 ## Appendix: Regeneration
 
