@@ -1,5 +1,5 @@
-#set page(margin: 1.2cm)
-#set text(font: "DejaVu Sans", size: 10pt)
+#set page(margin: 2cm)
+#set text(font: ("DejaVu Sans", "Lato"), size: 10pt)
 
 = RtHDDump Content Difference Report
 
