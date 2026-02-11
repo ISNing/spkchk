@@ -5,8 +5,6 @@ import argparse
 import csv
 import sys
 from pathlib import Path
-from typing import Dict, Iterable, Tuple
-
 import re
 
 WIN_WID_HEADER = re.compile(r"^\*{10} Wid=\[0x([0-9A-Fa-f]{2})\]")
@@ -15,8 +13,8 @@ LIN_NODE_HEADER = re.compile(r"^Node 0x([0-9A-Fa-f]{2})")
 LIN_COEFF_LINE = re.compile(r"^\s*Coeff 0x([0-9A-Fa-f]{2}): 0x([0-9A-Fa-f]{4})")
 
 
-def read_windows_coefficients(path: Path) -> Dict[str, Dict[int, str]]:
-    blocks: Dict[str, Dict[int, str]] = {}
+def read_windows_coefficients(path: Path) -> dict[str, dict[int, str]]:
+    blocks: dict[str, dict[int, str]] = {}
     current: str | None = None
     for line in path.read_text(errors="ignore").splitlines():
         header = WIN_WID_HEADER.match(line)
@@ -32,8 +30,8 @@ def read_windows_coefficients(path: Path) -> Dict[str, Dict[int, str]]:
     return blocks
 
 
-def read_linux_coefficients(path: Path) -> Dict[str, Dict[int, str]]:
-    blocks: Dict[str, Dict[int, str]] = {}
+def read_linux_coefficients(path: Path) -> dict[str, dict[int, str]]:
+    blocks: dict[str, dict[int, str]] = {}
     current: str | None = None
     for line in path.read_text(errors="ignore").splitlines():
         header = LIN_NODE_HEADER.match(line)
@@ -47,7 +45,7 @@ def read_linux_coefficients(path: Path) -> Dict[str, Dict[int, str]]:
     return blocks
 
 
-def iter_indices(*blocks: Dict[int, str]) -> Iterable[int]:
+def iter_indices(*blocks: dict[int, str]) -> list[int]:
     indices = set()
     for block in blocks:
         indices.update(block.keys())
@@ -55,10 +53,10 @@ def iter_indices(*blocks: Dict[int, str]) -> Iterable[int]:
 
 
 def compare_coefficients(
-    windows_blocks: Dict[str, Dict[int, str]],
-    linux_blocks: Dict[str, Dict[int, str]],
+    windows_blocks: dict[str, dict[int, str]],
+    linux_blocks: dict[str, dict[int, str]],
     mismatches_only: bool,
-) -> Tuple[list[dict[str, str]], list[dict[str, str]]]:
+) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
     rows: list[dict[str, str]] = []
     dsp_rows: list[dict[str, str]] = []
 
