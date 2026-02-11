@@ -33,6 +33,18 @@ This report investigates RtHDDump file *content* differences and their relations
 - Paired comparison method: for each device state, match files with all other states held constant and compare their key/value lines. A key is a *signature* when it changes in ≥ half of the paired comparisons for that state.
 - Values are trimmed for readability (`prefix…suffix`) but still show the changing portions.
 
+== Direct answer (WID vs device states)
+
+No WID lines change across the dataset, so there is no WID that directly controls Dolby, preferred device, or system audio enhancement in these dumps. The state changes are instead reflected in `REG_*` key/value differences:
+
+#table(
+  columns: (auto, auto, auto),
+  [State], [WID control?], [Content keys that change (examples)],
+  [Dolby (speaker/headset)], [None observed], [`(REG_BINARY) {1e94c58f-3e40-4ddb-b10c-a86d8b870a31},2`, `(REG_BINARY) {8a845654-d6c3-4cd7-b4eb-243d4bd99032},2`, `(REG_BINARY) {6737016f-5360-48ee-af05-e616c8ff27a7},2`, `(REG_BINARY) {1b4dab55-b1fb-4d8c-8317-f2d4a96efbb8},4`],
+  [Preferred (primary) device], [None observed], [`(REG_SZ) {24dbb0fc-9311-4b3d-9cf0-18ff155639d4},0`, `(REG_BINARY) {1e94c58f-3e40-4ddb-b10c-a86d8b870a31},2`, `(REG_BINARY) {bb8bdb4a-edac-4660-9056-8e67e68e4e77},4`],
+  [System audio enhancement], [None observed], [`(REG_BINARY) {1e94c58f-3e40-4ddb-b10c-a86d8b870a31},2`, `(REG_BINARY) {1b4dab55-b1fb-4d8c-8317-f2d4a96efbb8},1`, `(REG_DWORD) {1da5d803-d492-4edd-8c23-e0c0ffee7f0e},5`],
+)
+
 == Results
 
 === WID section stability
