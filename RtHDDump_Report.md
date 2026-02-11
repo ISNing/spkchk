@@ -22,6 +22,42 @@ This report investigates RtHDDump file *content* differences and their relations
 | Preferred (primary) device | None observed | `(REG_SZ) {24dbb0fc-9311-4b3d-9cf0-18ff155639d4},0`, `(REG_BINARY) {1e94c58f-3e40-4ddb-b10c-a86d8b870a31},2`, `(REG_BINARY) {bb8bdb4a-edac-4660-9056-8e67e68e4e77},4` |
 | System audio enhancement | None observed | `(REG_BINARY) {1e94c58f-3e40-4ddb-b10c-a86d8b870a31},2`, `(REG_BINARY) {1b4dab55-b1fb-4d8c-8317-f2d4a96efbb8},1`, `(REG_DWORD) {1da5d803-d492-4edd-8c23-e0c0ffee7f0e},5` |
 
+## Linux codec dump analysis
+
+Linux dumps (`lin_` prefix) are HD-audio codec snapshots (Realtek ALC287). Their tokens describe ALSA mixer states:
+
+- `no_automute`: automute disabled via alsamixer.
+- `dualstream`: manual unmute of both headphone and speaker paths while the headset is plugged.
+- `dual` (in the filename): headset is plugged.
+
+The Linux dumps show a **single stream** shared by the speaker/headphone outputs (node 0x02 and 0x03). The speaker pins (node 0x14/0x17) switch between `0x80` (muted) and `0x00` (unmuted) when automute/dualstream changes.
+
+| File | dual (hp plugged) | no_automute | dualstream | node0x02 stream | node0x03 stream | node0x14 amp-out | node0x17 amp-out |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| lin_codec-dump-dual_h_spk | yes | no | no | 0 | 0 | 0x80 0x80 | 0x80 0x80 |
+| lin_codec-dump-dual_h_spk_no_automute | yes | yes | no | 1 | 1 | 0x80 0x80 | 0x80 0x80 |
+| lin_codec-dump-dual_h_spk_no_automute_dualstream | yes | yes | yes | 1 | 1 | 0x00 0x00 | 0x00 0x00 |
+| lin_codec-dump-spk | no | no | no | 0 | 0 | 0x00 0x00 | 0x00 0x00 |
+| lin_codec-dump-spk_no_automute | no | yes | no | 1 | 1 | 0x00 0x00 | 0x00 0x00 |
+| lin_codec-dump-spk_no_automute_dualstream | no | yes | yes | 1 | 1 | 0x00 0x00 | 0x00 0x00 |
+
+**Interpretation:** `dualstream` explicitly unmutes the speaker pins while the headset is plugged, so the same audio stream is audible from both ports. `no_automute` turns off ALSA automute but does not by itself unmute the speaker pins when the headset is plugged; the manual unmute (dualstream) is what clears the `0x80` mute values.
+
+### Linux coefficient (verb) deltas
+
+The refreshed Linux dumps now include the vendor coefficient block under **Node 0x20**. Only three coefficients differ across the Linux states:
+
+| File | dual | no_automute | dualstream | Coeff 0x46 | Coeff 0x77 | Coeff 0x78 |
+| --- | --- | --- | --- | --- | --- | --- |
+| lin_codec-dump-dual_h_spk | yes | no | no | 0c04 | 0063 | 0079 |
+| lin_codec-dump-dual_h_spk_no_automute | yes | yes | no | 0c04 | 0023 | 0090 |
+| lin_codec-dump-dual_h_spk_no_automute_dualstream | yes | yes | yes | 0c04 | 0046 | 005d |
+| lin_codec-dump-spk | no | no | no | 0404 | 0050 | 00a6 |
+| lin_codec-dump-spk_no_automute | no | yes | no | 0404 | 003c | 006b |
+| lin_codec-dump-spk_no_automute_dualstream | no | yes | yes | 0404 | 001f | 0079 |
+
+**Interpretation:** Coeff **0x46** flips when the headset is plugged (`dual`), while **0x77** and **0x78** vary with automute and manual dualstream behavior. This aligns with the blog guidance that Windows/Linux differences often live in the vendor coefficient (verb) block rather than in the WID defaults.
+
 ## Results
 
 ### WID section stability
@@ -124,6 +160,20 @@ xychart-beta
 ## Conclusion
 
 The device-state verbs are reflected in **registry key/value differences**, not WID line changes. Preferred device and headset plug state show strong, consistent content signatures, while Dolby and enhancement states show fewer but still repeatable key changes across paired comparisons. The signature tables above provide the definitive, content-based mapping from each state to the specific keys that change.
+
+### Windows vs Linux implementation differences
+
+- **Windows:** exposes separate speaker/headset endpoints and maintains independent streams. Registry (`REG_*`) deltas track preferred device, Dolby, and enhancement independently per endpoint.
+- **Linux:** exposes a single logical playback device with shared stream IDs for speaker/headphone outputs (node 0x02/0x03). Automute and manual unmute are reflected in pin amp-out values (node 0x14/0x17) and Node 0x20 coefficients, not separate streams.
+
+### Consistency guidance
+
+To make platform behavior consistent, choose one of these strategies:
+
+1. **Match Windows behavior on Linux** by exposing separate sinks (speaker/headphone) via ALSA UCM or PipeWire/WirePlumber and routing distinct streams to each output, while disabling automute.
+2. **Match Linux behavior on Windows** by forcing a shared stream (mirrored output) so speaker/headphone always play the same audio flow.
+
+The analysis above indicates that Linux currently controls routing/mute state (pin amp-out values and Node 0x20 coefficients), while Windows controls endpoint selection and processing (registry keys). Aligning the control surface is the key to cross‑platform consistency.
 
 ## Appendix: Regeneration
 
