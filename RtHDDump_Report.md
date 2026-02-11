@@ -8,7 +8,7 @@
 - **Linux coefficient changes are limited to headset plug + automute/dualstream:** Node `0x20` coefficient `0x46` toggles with headset plug; `0x77/0x78` move with automute/dualstream.
 - **Dolby/enhancement** do **not** appear in WIDs or coefficients; they are encoded in the `REG_*` registry keys in Windows dumps.
 
-The remainder of this report reconstructs the investigation into **Windows internals**, **Linux internals**, and a **cross‑platform investigation** that maps each WID and coefficient to its inferred control meaning.
+The remainder of this report reconstructs the investigation into **Windows internals**, **Linux internals**, and a **cross-platform investigation** that maps each WID and coefficient to its inferred control meaning.
 
 ---
 
@@ -65,8 +65,8 @@ Linux exposes vendor coefficients under **Node 0x20**. Only three coefficients v
 | dual_h_spk_no_automute_dualstream | 0C04 | 0046 | 005D | Dualstream toggle (0x77/0x78) |
 
 **Inference:**
-- **0x46** is a headset‑plug control in Linux.
-- **0x77/0x78** encode automute/dualstream routing choices (Linux‑specific behavior).
+- **0x46** is a headset-plug control in Linux.
+- **0x77/0x78** encode automute/dualstream routing choices (Linux-specific behavior).
 
 ---
 
@@ -105,12 +105,14 @@ The table below lists every coefficient index that differs across Windows/Linux 
 
 1. Retask pin **0x1D** to the Windows driver value **0x411111F0**.
 2. Apply the **Windows Wid 0x20 coefficient baseline** to Linux Node 0x20 (indices listed above).
-3. On headset plug/unplug, mirror the **Windows headset‑plug deltas** (`0x10/0x46/0x67`).
-4. Neutralize Linux‑specific automute behavior by setting **0x77/0x78** to **Windows baseline (0000)** and controlling routing explicitly.
+3. On headset plug/unplug, mirror the **Windows headset-plug deltas** (`0x10/0x46/0x67`).
+4. Neutralize Linux-specific automute behavior by setting **0x77/0x78** to **Windows baseline (0000)** and controlling routing explicitly.
 
 ---
 
 ## Appendix: Regeneration
+
+Font selection: the report uses DejaVu Sans with Lato as the fallback font to maximize availability on typical Linux systems.
 
 Generate the CSV summary and the PDF report from the current dumps:
 
