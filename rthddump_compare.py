@@ -11,6 +11,7 @@ WIN_WID_HEADER = re.compile(r"^\*{10} Wid=\[0x([0-9A-Fa-f]{2})\]")
 WIN_INDEX_LINE = re.compile(r"^Index 0x([0-9A-Fa-f]{2})\s+0x([0-9A-Fa-f]{4})")
 LIN_NODE_HEADER = re.compile(r"^Node 0x([0-9A-Fa-f]{2})")
 LIN_COEFF_LINE = re.compile(r"^\s*Coeff 0x([0-9A-Fa-f]{2}): 0x([0-9A-Fa-f]{4})")
+DSP_EXCLUDED_BLOCK = "20"
 
 
 def read_windows_coefficients(path: Path) -> dict[str, dict[int, str]]:
@@ -45,7 +46,7 @@ def read_linux_coefficients(path: Path) -> dict[str, dict[int, str]]:
     return blocks
 
 
-def iter_indices(*blocks: dict[int, str]) -> list[int]:
+def collect_indices(*blocks: dict[int, str]) -> list[int]:
     indices = set()
     for block in blocks:
         indices.update(block.keys())
@@ -64,7 +65,7 @@ def compare_coefficients(
     for block in all_blocks:
         win_block = windows_blocks.get(block, {})
         lin_block = linux_blocks.get(block, {})
-        for index in iter_indices(win_block, lin_block):
+        for index in collect_indices(win_block, lin_block):
             win_value = win_block.get(index, "")
             lin_value = lin_block.get(index, "")
             if mismatches_only and win_value == lin_value:
@@ -86,7 +87,7 @@ def compare_coefficients(
                 }
             )
 
-        if block == "20" or block in linux_blocks:
+        if block == DSP_EXCLUDED_BLOCK or block in linux_blocks:
             continue
         non_zero = {idx: val for idx, val in win_block.items() if val != "0000"}
         if not non_zero:
