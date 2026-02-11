@@ -106,15 +106,18 @@ Windows WID pin values do not change across profiles (preferred device, Dolby, e
 
 No Wid 0x20 coefficient changes were observed for speaker/headset Dolby or enhancement states in the Windows dumps; those states are reflected in registry (`REG_*`) deltas instead.
 
-=== Cross-platform state deltas (direct comparison)
+=== Inconsistent behavior to reproduce Windows on Linux
 
 #table(
   columns: (auto, auto, auto, auto),
-  [State], [Windows changes], [Linux changes], [Overlap],
-  [Headset plugged (dual)], [Wid 0x20 indices `0x10`, `0x46`, `0x67`], [Node 0x20 coeff `0x46`; speaker pins (0x14/0x17) muted when dualstream is off], [Index 0x46],
-  [Automute/dualstream], [None in Wid 0x20], [Node 0x20 coeff `0x77/0x78`; pin amp-out `0x80→0x00`], [None],
-  [Dolby/enhance], [No Wid/coeff changes; registry deltas only], [Not represented in Linux dumps], [None],
+  [Inconsistency], [Windows behavior], [Linux behavior], [Reproduction knob (Linux)],
+  [Pin config (WID 0x1D)], [Driver overrides to `Drv=411111F0`], [Linux keeps codec default `Pin Default=40471A6D`], [Retask pin 0x1D to `0x411111F0` (firmware patch / hda-verb)],
+  [Vendor coeff baseline], [Wid 0x20 values differ at indices `0x03/0x04/0x08/0x10/0x1A/0x30/0x44/0x46/0x48/0x49/0x67/0x77/0x78`], [Node 0x20 coefficients keep Linux defaults], [Write Node 0x20 coefficients to the Windows values],
+  [Headset plug handling], [Wid 0x20 indices `0x10/0x46/0x67` toggle on plug], [Linux uses pin mutes + coeff `0x46`], [Apply Windows index values on plug/unplug and avoid automute pin mutes],
+  [Automute/dualstream], [Not represented in Wid 0x20], [Linux uses coeff `0x77/0x78` + pin amp-out], [Set coeffs `0x77/0x78` to Windows baseline (0000) and manage routing explicitly],
 )
+
+Direct reproduction path: update Linux pin config for 0x1D, then apply the Windows Wid 0x20 coefficient table to Node 0x20 (baseline), and mirror the headset-plug deltas (`0x10/0x46/0x67`) when the jack state changes. This aligns Linux’s control surface to the Windows driver behavior.
 
 == Linux codec dump analysis
 
