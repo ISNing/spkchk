@@ -25,7 +25,7 @@ Node 0x02 [Audio Output] wcaps 0x41d: Stereo Amp-Out
     ControlAmp: chs=3, dir=Out, idx=0, ofs=0
   Amp-Out caps: ofs=0x57, nsteps=0x57, stepsize=0x02, mute=0
   Amp-Out vals:  [0x29 0x29]
-  Converter: stream=0, channel=0
+  Converter: stream=1, channel=0
   PCM:
     rates [0x40]: 48000
     bits [0xe]: 16 20 24
@@ -37,7 +37,7 @@ Node 0x03 [Audio Output] wcaps 0x41d: Stereo Amp-Out
     ControlAmp: chs=3, dir=Out, idx=0, ofs=0
   Amp-Out caps: ofs=0x57, nsteps=0x57, stepsize=0x02, mute=0
   Amp-Out vals:  [0x29 0x29]
-  Converter: stream=0, channel=0
+  Converter: stream=1, channel=0
   PCM:
     rates [0x40]: 48000
     bits [0xe]: 16 20 24
@@ -142,7 +142,7 @@ Node 0x14 [Pin Complex] wcaps 0x40058d: Stereo Amp-Out
   Control: name="Bass Speaker Playback Switch", index=0, device=0
     ControlAmp: chs=3, dir=Out, idx=0, ofs=0
   Amp-Out caps: ofs=0x00, nsteps=0x00, stepsize=0x00, mute=1
-  Amp-Out vals:  [0x80 0x80]
+  Amp-Out vals:  [0x00 0x00]
   Pincap 0x00010014: OUT EAPD Detect
   EAPD 0x2: EAPD
   Pin Default 0x90170120: [Fixed] Speaker at Int N/A
@@ -161,7 +161,7 @@ Node 0x17 [Pin Complex] wcaps 0x40058d: Stereo Amp-Out
   Control: name="Speaker Playback Switch", index=0, device=0
     ControlAmp: chs=3, dir=Out, idx=0, ofs=0
   Amp-Out caps: ofs=0x00, nsteps=0x00, stepsize=0x00, mute=1
-  Amp-Out vals:  [0x80 0x80]
+  Amp-Out vals:  [0x00 0x00]
   Pincap 0x0000001c: OUT HP Detect
   Pin Default 0x90170120: [Fixed] Speaker at Int N/A
     Conn = Analog, Color = Unknown
@@ -259,7 +259,7 @@ Node 0x21 [Pin Complex] wcaps 0x40058d: Stereo Amp-Out
   Control: name="Headphone Playback Switch", index=0, device=0
     ControlAmp: chs=3, dir=Out, idx=0, ofs=0
   Amp-Out caps: ofs=0x00, nsteps=0x00, stepsize=0x00, mute=1
-  Amp-Out vals:  [0x00 0x00]
+  Amp-Out vals:  [0x80 0x80]
   Pincap 0x0001001c: OUT HP EAPD Detect
   EAPD 0x2: EAPD
   Pin Default 0x03211010: [Jack] HP Out at Ext Left
