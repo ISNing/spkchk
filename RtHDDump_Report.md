@@ -22,6 +22,69 @@ This report investigates RtHDDump file *content* differences and their relations
 | Preferred (primary) device | None observed | `(REG_SZ) {24dbb0fc-9311-4b3d-9cf0-18ff155639d4},0`, `(REG_BINARY) {1e94c58f-3e40-4ddb-b10c-a86d8b870a31},2`, `(REG_BINARY) {bb8bdb4a-edac-4660-9056-8e67e68e4e77},4` |
 | System audio enhancement | None observed | `(REG_BINARY) {1e94c58f-3e40-4ddb-b10c-a86d8b870a31},2`, `(REG_BINARY) {1b4dab55-b1fb-4d8c-8317-f2d4a96efbb8},1`, `(REG_DWORD) {1da5d803-d492-4edd-8c23-e0c0ffee7f0e},5` |
 
+## Windows vs Linux direct comparisons
+
+### WID meaning and Node mapping
+
+Windows `Wid=0x??` entries correspond directly to Linux `Node 0x??`. The WID line reports the codec default (`Codec`) and the driver override (`Drv`), while Linux exposes the active value as `Pin Default` in the node section. The mapping below compares Windows (spk baseline) to Linux (`lin_codec-dump-spk`):
+
+| WID/Node | Windows Codec | Windows Drv | Linux Pin Default | Drv==Linux? | Codec==Linux? |
+| --- | --- | --- | --- | --- | --- |
+| 0x12 | 40000000 | 40000000 | 40000000 | yes | yes |
+| 0x13 | 411111F0 | 411111F0 | 411111F0 | yes | yes |
+| 0x14 | 90170120 | 90170120 | 90170120 | yes | yes |
+| 0x17 | 90170120 | 90170120 | 90170120 | yes | yes |
+| 0x19 | 03A11030 | 03A11030 | 03A11030 | yes | yes |
+| 0x1A | 411111F0 | 411111F0 | 411111F0 | yes | yes |
+| 0x1B | 411111F0 | 411111F0 | 411111F0 | yes | yes |
+| 0x1D | 40471A6D | 411111F0 | 40471A6D | no | yes |
+| 0x1E | 411111F0 | 411111F0 | 411111F0 | yes | yes |
+| 0x21 | 03211010 | 03211010 | 03211010 | yes | yes |
+
+**Direct answer:** WID `0x1D` is the only pin where the Windows driver overrides the codec default (`Drv=411111F0` vs `Codec=40471A6D`). Linux keeps the codec default (`Pin Default=40471A6D`).
+
+### Windows vs Linux coefficient (verb) block
+
+Windows stores vendor coefficients under **Wid 0x20** (Index lines). Linux exposes the same vendor block under **Node 0x20** (Coeff lines). Comparing Windows `RtHDDump_spk.txt` to Linux `lin_codec-dump-spk` shows only these mismatches:
+
+| Index | Windows (Wid 0x20) | Linux (Node 0x20) |
+| --- | --- | --- |
+| 0x03 | F002 | 0002 |
+| 0x04 | AA09 | AA89 |
+| 0x08 | 4A37 | 4AB7 |
+| 0x10 | 8A06 | 8906 |
+| 0x1A | 8C83 | 8003 |
+| 0x30 | 9007 | 9004 |
+| 0x44 | 4900 | 4500 |
+| 0x46 | 0004 | 0404 |
+| 0x48 | D049 | D011 |
+| 0x49 | 0049 | 0045 |
+| 0x67 | 1000 | F000 |
+| 0x77 | 0000 | 0050 |
+| 0x78 | 0000 | 00A6 |
+
+**Direct answer:** The largest Windows/Linux differences sit in the vendor coefficient block (Wid/Node 0x20). These are the immediate candidates for verb-level tuning if you want Linux to match Windows behavior.
+
+### State deltas across Windows profiles
+
+Windows **WID pin values do not change across profiles** (preferred device, Dolby, enhancement, headset plug). The only Windows coefficient deltas tied to a state are for **headset plugged**:
+
+| Index | Headset unplugged | Headset plugged |
+| --- | --- | --- |
+| 0x10 | 8A06 | 8B06 |
+| 0x46 | 0004 | 0C34 |
+| 0x67 | 1000 | 3000 |
+
+No Wid 0x20 coefficient changes were observed for speaker/headset Dolby or enhancement states in the Windows dumps; those states are reflected in registry (`REG_*`) deltas instead.
+
+### Cross-platform state deltas (direct comparison)
+
+| State | Windows changes | Linux changes | Overlap |
+| --- | --- | --- | --- |
+| Headset plugged (dual) | Wid 0x20 indices `0x10`, `0x46`, `0x67` | Node 0x20 coeff `0x46`; speaker pins (0x14/0x17) muted when dualstream is off | **Index 0x46** |
+| Automute/dualstream | None in Wid 0x20 | Node 0x20 coeff `0x77/0x78`; pin amp-out `0x80→0x00` | None |
+| Dolby/enhance | No Wid/coeff changes; registry deltas only | Not represented in Linux dumps | None |
+
 ## Linux codec dump analysis
 
 Linux dumps (`lin_` prefix) are HD-audio codec snapshots (Realtek ALC287). Their tokens describe ALSA mixer states:
