@@ -45,6 +45,18 @@ Windows stores vendor coefficients under **Wid 0x20**. The only coefficient chan
 
 **Inference:** headset plug is expressed via **Wid 0x20 coefficient deltas**, not via WID pin changes. Dolby/enhancement are **not** represented in Wid/coeff values and instead live in `REG_*` deltas.
 
+### Windows-only DSP coefficient blocks (IIR/EQ/DRC candidates)
+
+Windows exposes additional vendor coefficient blocks on WIDs `0x53–0x58` that are not present in the Linux dumps. These blocks have dense, non-zero coefficient sets and are likely used for DSP processing such as IIR/EQ/DRC (based on the presence of many fixed-point coefficient values). Linux lacks these nodes, so their tuning is not applied.
+
+| WID | coeff count | non-zero coeffs | sample non-zero values | Inferred meaning |
+| --- | --- | --- | --- | --- |
+| 0x53 | 128 | 10 | 0x00=602A, 0x02=8000, 0x05=0263, 0x06=41F4, 0x07=1F20 | DSP coefficient block (IIR/EQ/DRC candidate) |
+| 0x54 | 128 | 9 | 0x00=2000, 0x05=0263, 0x06=41F4, 0x07=1F20, 0x08=D8C2 | DSP coefficient block (IIR/EQ/DRC candidate) |
+| 0x56 | 128 | 6 | 0x00=821C, 0x02=74C4, 0x03=082A, 0x04=6400, 0x05=D7C6 | DSP coefficient block (IIR/EQ/DRC candidate) |
+| 0x57 | 128 | 5 | 0x03=A011, 0x04=8244, 0x06=2000, 0x07=3300, 0x08=2200 | DSP coefficient block (IIR/EQ/DRC candidate) |
+| 0x58 | 128 | 5 | 0x00=1888, 0x03=31CC, 0x0F=F0C9, 0x11=0621, 0x14=C000 | DSP coefficient block (IIR/EQ/DRC candidate) |
+
 ---
 
 ## Linux internal investigation
@@ -71,6 +83,10 @@ Linux exposes vendor coefficients under **Node 0x20**. Only three coefficients v
 ---
 
 ## Cross investigation (Windows ↔ Linux)
+
+### Windows-only DSP blocks missing in Linux
+
+The WIDs above (`0x53–0x58`) are present only in Windows dumps and contain non-zero coefficient sets. Their absence in Linux is consistent with missing IIR/EQ/DRC tuning in the Linux driver path.
 
 ### Coefficient meaning list (merged view)
 
@@ -118,5 +134,6 @@ Generate the CSV summary and the PDF report from the current dumps:
 
 ```bash
 python rthddump_report.py --output rthddump_summary.csv
+python rthddump_compare.py --diff-output rthddump_coeff_compare.csv --dsp-output rthddump_windows_dsp.csv --mismatches-only
 typst compile RtHDDump_Report.typ RtHDDump_Report.pdf
 ```

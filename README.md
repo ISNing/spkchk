@@ -8,6 +8,12 @@ python rthddump_report.py --output rthddump_summary.csv
 
 `rthddump_summary.csv` is the current report generated from all dumps. It lists each file with inferred device flags plus size/line-count stats.
 
+Use `rthddump_compare.py` to compare Windows RtHDDump coefficient blocks with Linux codec dumps and extract DSP/IIR/EQ/DRC candidate blocks:
+
+```bash
+python rthddump_compare.py --diff-output rthddump_coeff_compare.csv --dsp-output rthddump_windows_dsp.csv --mismatches-only
+```
+
 Academic report files:
 
 - `RtHDDump_Report.md` (markdown version with charts)
